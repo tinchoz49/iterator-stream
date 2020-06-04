@@ -17,23 +17,34 @@ function ReadStream (iterator, options) {
 }
 
 ReadStream.prototype._read = function () {
+  if (this.destroyed) return
+
   var self = this
   var options = this._options
-  if (this.destroyed) return
+
+  self._readableState.readingMore = false
 
   this._iterator.next(function (err, key, value) {
     if (self.destroyed) return
     if (err) return self.destroy(err)
 
     if (key === undefined && value === undefined) {
-      self.push(null)
-    } else if (options.keys !== false && options.values === false) {
-      self.push(key)
-    } else if (options.keys === false && options.values !== false) {
-      self.push(value)
-    } else {
-      self.push({ key: key, value: value })
+      return self.push(null)
     }
+
+    self._reading = false
+
+    var data = null
+    if (options.keys !== false && options.values === false) {
+      data = key
+    } else if (options.keys === false && options.values !== false) {
+      data = value
+    } else {
+      data = { key: key, value: value }
+    }
+
+    self._readableState.readingMore = true
+    if (self.push(data)) self._read(self._readableState.highWaterMark)
   })
 }
 
